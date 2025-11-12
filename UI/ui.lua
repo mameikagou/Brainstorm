@@ -1,191 +1,56 @@
 local lovely = require("lovely")
 local nativefs = require("nativefs")
 
-local tag_list = {
-  ["None"] = "",
-  ["Uncommon Tag"] = "tag_uncommon",
-  ["Rare Tag"] = "tag_rare",
-  ["Holographic Tag"] = "tag_holo",
-  ["Foil Tag"] = "tag_foil",
-  ["Polychrome Tag"] = "tag_polychrome",
-  ["Investment Tag"] = "tag_investment",
-  ["Voucher Tag"] = "tag_voucher",
-  ["Boss Tag"] = "tag_boss",
-  ["Charm Tag"] = "tag_charm",
-  ["Juggle Tag"] = "tag_juggle",
-  ["Double Tag"] = "tag_double",
-  ["Coupon Tag"] = "tag_coupon",
-  ["Economy Tag"] = "tag_economy",
-  ["Skip Tag"] = "tag_skip",
-  ["D6 Tag"] = "tag_d_six",
-}
+local ui_options = Brainstorm.loadFile("/data/ui_options.lua")
 
-local voucher_list = {
-  ["None"] = "",
-  ["Overstock"] = "v_overstock_norm",
-  ["Clearance Sale"] = "v_clearance_sale",
-  ["Hone"] = "v_hone",
-  ["Reroll Surplus"] = "v_reroll_surplus",
-  ["Crystal Ball"] = "v_crystal_ball",
-  ["Telescope"] = "v_telescope",
-  ["Grabber"] = "v_grabber",
-  ["Wasteful"] = "v_wasteful",
-  ["Tarot Merchant"] = "v_tarot_merchant",
-  ["Planet Merchant"] = "v_planet_merchant",
-  ["Seed Money"] = "v_seed_money",
-  ["Blank"] = "v_blank",
-  ["Magic Trick"] = "v_magic_trick",
-  ["Hieroglyph"] = "v_hieroglyph",
-  ["Director's Cut"] = "v_directors_cut",
-  ["Paint Brush"] = "v_paint_brush",
-}
-
-local pack_list = {
-  ["None"] = {},
-  ["Normal Arcana"] = {
-    "p_arcana_normal_1",
-    "p_arcana_normal_2",
-    "p_arcana_normal_3",
-    "p_arcana_normal_4",
-  },
-  ["Jumbo Arcana"] = { "p_arcana_jumbo_1", "p_arcana_jumbo_2" },
-  ["Mega Arcana"] = { "p_arcana_mega_1", "p_arcana_mega_2" },
-  ["Normal Celestial"] = {
-    "p_celestial_normal_1",
-    "p_celestial_normal_2",
-    "p_celestial_normal_3",
-    "p_celestial_normal_4",
-  },
-  ["Jumbo Celestial"] = { "p_celestial_jumbo_1", "p_celestial_jumbo_2" },
-  ["Mega Celestial"] = { "p_celestial_mega_1", "p_celestial_mega_2" },
-  ["Normal Standard"] = {
-    "p_standard_normal_1",
-    "p_standard_normal_2",
-    "p_standard_normal_3",
-    "p_standard_normal_4",
-  },
-  ["Jumbo Standard"] = { "p_standard_jumbo_1", "p_standard_jumbo_2" },
-  ["Mega Standard"] = { "p_standard_mega_1", "p_standard_mega_2" },
-  ["Normal Buffoon"] = { "p_buffoon_normal_1", "p_buffoon_normal_2" },
-  ["Jumbo Buffoon"] = { "p_buffoon_jumbo_1" },
-  ["Mega Buffoon"] = { "p_buffoon_mega_1" },
-  ["Normal Spectral"] = { "p_spectral_normal_1", "p_spectral_normal_2" },
-  ["Jumbo Spectral"] = { "p_spectral_jumbo_1" },
-  ["Mega Spectral"] = { "p_spectral_mega_1" },
-}
-local spf_list = {
-  ["500"] = 500,
-  ["750"] = 750,
-  ["1000"] = 1000,
-}
-
-local spf_keys = { "500", "750", "1000" }
-
-local ratio_list = {
-  ["50%"] = 0.5,
-  ["60%"] = 0.6,
-  ["70%"] = 0.7,
-  ["75%"] = 0.75,
-  ["80%"] = 0.80,
-}
-
-local ratio_keys = { "50%", "60%", "70%", "75%", "80%" }
-
-local voucher_keys = {
-  "None",
-  "Overstock",
-  "Clearance Sale",
-  "Hone",
-  "Reroll Surplus",
-  "Crystal Ball",
-  "Telescope",
-  "Grabber",
-  "Wasteful",
-  "Tarot Merchant",
-  "Planet Merchant",
-  "Seed Money",
-  "Blank",
-  "Magic Trick",
-  "Hieroglyph",
-  "Director's Cut",
-  "Paint Brush",
-}
-
-local tag_keys = {
-  "None",
-  "Charm Tag",
-  "Double Tag",
-  "Uncommon Tag",
-  "Rare Tag",
-  "Holographic Tag",
-  "Foil Tag",
-  "Polychrome Tag",
-  "Investment Tag",
-  "Voucher Tag",
-  "Boss Tag",
-  "Juggle Tag",
-  "Coupon Tag",
-  "Economy Tag",
-  "Skip Tag",
-  "D6 Tag",
-}
-local pack_keys = {
-  "None",
-  "Normal Arcana",
-  "Jumbo Arcana",
-  "Mega Arcana",
-  "Normal Celestial",
-  "Jumbo Celestial",
-  "Mega Celestial",
-  "Normal Standard",
-  "Jumbo Standard",
-  "Mega Standard",
-  "Normal Buffoon",
-  "Jumbo Buffoon",
-  "Mega Buffoon",
-  "Normal Spectral",
-  "Jumbo Spectral",
-  "Mega Spectral",
-}
+-- Use ui_options helpers. The UI expects ordered label arrays for option cycles and
+-- uses numeric indices for the current_option. Config will store IDs (strings).
 
 G.FUNCS.change_target_voucher = function(x)
-  Brainstorm.config.ar_filters.voucher_id = x.to_key
-  Brainstorm.config.ar_filters.voucher_name = voucher_list[x.to_val]
+  local id = ui_options.id_at("voucher", x.to_key)
+  Brainstorm.config.autoroll_filters.voucher_id = id
+  Brainstorm.config.autoroll_filters.voucher_name = ui_options.value_for_id("voucher", id) or x.to_val
   Brainstorm.writeConfig()
 end
 
 G.FUNCS.change_target_pack = function(x)
-  Brainstorm.config.ar_filters.pack_id = x.to_key
-  Brainstorm.config.ar_filters.pack = pack_list[x.to_val]
+  local id = ui_options.id_at("pack", x.to_key)
+  Brainstorm.config.autoroll_filters.pack_id = id
+  local entry = ui_options.entry_for_id("pack", id)
+  Brainstorm.config.autoroll_filters.pack = entry and entry.items or {}
   Brainstorm.writeConfig()
 end
 
 G.FUNCS.change_target_tag = function(x)
-  Brainstorm.config.ar_filters.tag_id = x.to_key
-  Brainstorm.config.ar_filters.tag_name = tag_list[x.to_val]
+  local id = ui_options.id_at("tag", x.to_key)
+  Brainstorm.config.autoroll_filters.tag_id = id
+  Brainstorm.config.autoroll_filters.tag_name = ui_options.value_for_id("tag", id) or x.to_val
   Brainstorm.writeConfig()
 end
 
 G.FUNCS.change_soul_count = function(x)
-  Brainstorm.config.ar_filters.soul_skip = x.to_val
+  Brainstorm.config.autoroll_filters.souls_to_skip = x.to_val
   Brainstorm.writeConfig()
 end
 
 G.FUNCS.change_spf = function(x)
-  Brainstorm.config.ar_prefs.spf_id = x.to_key
-  Brainstorm.config.ar_prefs.spf_int = spf_list[x.to_val]
+  local id = ui_options.id_at("spf", x.to_key)
+  Brainstorm.config.autoroll_prefs.seeds_per_frame_id = id
+  Brainstorm.config.autoroll_prefs.seeds_per_frame = ui_options.value_for_id("spf", id) or x.to_val
   Brainstorm.writeConfig()
 end
 
 G.FUNCS.change_face_count = function(x)
-	Brainstorm.config.ar_prefs.face_count = x.to_val
+	Brainstorm.config.autoroll_prefs.face_card_minimum = x.to_val
 	Brainstorm.writeConfig()
 end
 
 G.FUNCS.change_suit_ratio = function(x)
-	Brainstorm.config.ar_prefs.suit_ratio_percent = x.to_key
-  Brainstorm.config.ar_prefs.suit_ratio_decimal = ratio_list[x.to_val]
-	Brainstorm.writeConfig()
+  local id = ui_options.id_at("ratio", x.to_key)
+  Brainstorm.config.autoroll_prefs.suit_ratio_id = id
+  Brainstorm.config.autoroll_prefs.suit_ratio_percent = ui_options.entry_for_id("ratio", id) and ui_options.entry_for_id("ratio", id).label or x.to_val
+  Brainstorm.config.autoroll_prefs.suit_ratio_decimal = ui_options.value_for_id("ratio", id)
+  Brainstorm.writeConfig()
 end
 
 Brainstorm.opt_ref = G.FUNCS.options
@@ -220,25 +85,25 @@ function create_tabs(args)
                   label = "AR: TAG SEARCH",
                   scale = 0.8,
                   w = 4,
-                  options = tag_keys,
+                  options = ui_options.get_labels("tag"),
                   opt_callback = "change_target_tag",
-                  current_option = Brainstorm.config.ar_filters.tag_id or 1,
+                  current_option = ui_options.index_of_id("tag", Brainstorm.config.autoroll_filters.tag_id) or 1,
                 }),
                 create_option_cycle({
                   label = "AR: VOUCHER SEARCH",
                   scale = 0.8,
                   w = 4,
-                  options = voucher_keys,
+                  options = ui_options.get_labels("voucher"),
                   opt_callback = "change_target_voucher",
-                  current_option = Brainstorm.config.ar_filters.voucher_id or 1,
+                  current_option = ui_options.index_of_id("voucher", Brainstorm.config.autoroll_filters.voucher_id) or 1,
                 }),
                 create_option_cycle({
                   label = "AR: PACK SEARCH",
                   scale = 0.8,
                   w = 4,
-                  options = pack_keys,
+                  options = ui_options.get_labels("pack"),
                   opt_callback = "change_target_pack",
-                  current_option = Brainstorm.config.ar_filters.pack_id or 1,
+                  current_option = ui_options.index_of_id("pack", Brainstorm.config.autoroll_filters.pack_id) or 1,
                 }),
                 create_option_cycle({
                   label = "AR: N. SOULS",
@@ -246,7 +111,7 @@ function create_tabs(args)
                   w = 4,
                   options = { 0, 1 },
                   opt_callback = "change_soul_count",
-                  current_option = Brainstorm.config.ar_filters.soul_skip + 1
+                  current_option = Brainstorm.config.autoroll_filters.souls_to_skip + 1
                     or 1,
                 }),
               },
@@ -264,21 +129,21 @@ function create_tabs(args)
                   label = "AP: Seeds per frame",
                   scale = 0.8,
                   w = 4,
-                  options = spf_keys,
+                  options = ui_options.get_labels("spf"),
                   opt_callback = "change_spf",
-                  current_option = Brainstorm.config.ar_prefs.spf_id or 1,
+                  current_option = ui_options.index_of_id("spf", Brainstorm.config.autoroll_prefs.seeds_per_frame_id) or 1,
                 }),
                 create_toggle({
                   label = "AR: INST OBSERVATORY",
                   scale = 0.8,
-                  ref_table = Brainstorm.config.ar_filters,
+                  ref_table = Brainstorm.config.autoroll_filters,
                   ref_value = "inst_observatory",
                   callback = function(_set_toggle) end,
                 }),
                 create_toggle({
                   label = "AR: INST PERKEO",
                   scale = 0.8,
-                  ref_table = Brainstorm.config.ar_filters,
+                  ref_table = Brainstorm.config.autoroll_filters,
                   ref_value = "inst_perkeo",
                   callback = function(_set_toggle) end,
                 }),
@@ -288,15 +153,15 @@ function create_tabs(args)
                   w = 4,
                   options = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25},
                   opt_callback = "change_face_count",
-                  current_option = Brainstorm.config.ar_prefs.face_count + 1 or 1,
+                  current_option = Brainstorm.config.autoroll_prefs.face_card_minimum + 1 or 1,
                 }),
                 create_option_cycle({
                   label = "ED: Suit Ratio ",
                   scale = 0.8,
                   w = 4,
-                  options = ratio_keys,
+                  options = ui_options.get_labels("ratio"),
                   opt_callback = "change_suit_ratio",
-                  current_option = Brainstorm.config.ar_prefs.suit_ratio_percent,
+                  current_option = ui_options.index_of_id("ratio", Brainstorm.config.autoroll_prefs.suit_ratio_id or Brainstorm.config.autoroll_prefs.suit_ratio_percent) or 1,
                 }),
               },
             },

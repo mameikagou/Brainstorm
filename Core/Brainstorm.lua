@@ -7,33 +7,30 @@ Brainstorm.VERSION = "Brainstorm v2.2.0-alpha"
 
 Brainstorm.SMODS = nil
 
-Brainstorm.config = {
-  enable = true,
-  keybind_autoreroll = "r",
-  keybinds = {
-    options = "t",
-    modifier = "lctrl",
-    f_reroll = "r",
-    a_reroll = "a",
-  },
-  ar_filters = {
-    pack = {},
-    pack_id = 1,
-    voucher_name = "",
-    voucher_id = 1,
-    tag_name = "tag_charm",
-    tag_id = 2,
-    soul_skip = 1,
-    inst_observatory = false,
-    inst_perkeo = false,
-  },
-  ar_prefs = {
-    spf_id = 3,
-    spf_int = 1000,
-    face_count = 0,
-    suut_ratio_percent = "50%",
-  },
-}
+
+local function deep_copy(orig)
+  if type(orig) ~= "table" then
+    return orig
+  end
+  local copy = {}
+  for k, v in pairs(orig) do
+    copy[k] = deep_copy(v)
+  end
+  return copy
+end
+
+local function deep_merge(dst, src)
+  -- merge src into dst (in-place), recursively for tables
+  for k, v in pairs(src or {}) do
+    if type(v) == "table" and type(dst[k]) == "table" then
+      deep_merge(dst[k], v)
+    else
+      dst[k] = v
+    end
+  end
+  return dst
+end
+
 
 Brainstorm.ar_timer = 0
 Brainstorm.ar_frames = 0
@@ -63,6 +60,22 @@ local function fileExists(filePath)
   return nfs.getInfo(filePath) ~= nil
 end
 
+function Brainstorm.loadFile(path)
+  local abs_path = Brainstorm.PATH .. path
+  if not fileExists(abs_path) then
+    error("file not found: " .. abs_path)
+  else file, err = nfs.read(abs_path)
+    if not file then
+      error("Failed to read file: " .. (err or "unknown error"))
+    end
+    local loaded = STR_UNPACK(file)
+    if type(loaded) == "table" then
+      return deep_copy(loaded)
+    end
+  end
+  return nil
+end
+
 function Brainstorm.loadConfig()
   local configPath = Brainstorm.PATH .. "/config.lua"
   if not fileExists(configPath) then
@@ -72,8 +85,112 @@ function Brainstorm.loadConfig()
     if not configFile then
       error("Failed to read config file: " .. (err or "unknown error"))
     end
-    Brainstorm.config = STR_UNPACK(configFile) or Brainstorm.config
+    local loaded = STR_UNPACK(configFile)
+    if type(loaded) == "table" then
+      -- merge user-loaded config into defaults
+      deep_merge(Brainstorm.config, loaded)
+    end
   end
+  -- Ensure any legacy UI config (indices/labels) are migrated to canonical IDs
+  Brainstorm.migrate_ui_config()
+end
+
+-- Migrate legacy UI-related config (indices or labels) into canonical ID strings.
+function Brainstorm.migrate_ui_config()
+  local ui_path = Brainstorm.PATH .. "/data/ui_options.lua"
+  if not fileExists(ui_path) then
+    return
+  end
+  local raw, err = nfs.read(ui_path)
+  if not raw then
+    return
+  end
+  local ok, ui_mod = pcall(function() return assert(load(raw))() end)
+  if not ok or type(ui_mod) ~= "table" then
+    return
+  end
+
+  -- Helpers
+  local function normalize_index_or_id(kind, v)
+    -- return canonical id string for the supplied value which may be a number (index),
+    -- an id string, or a label string.
+    if v == nil then return ui_mod.id_at(kind, 1) end
+    if type(v) == "number" then
+      -- Prefer treating a number as an index; if that fails, try matching against entry.value
+      local by_index = ui_mod.id_at(kind, v)
+      if by_index then return by_index end
+      local kinds_tbl = ui_mod._kinds and ui_mod._kinds[kind]
+      if kinds_tbl and kinds_tbl.map then
+        for id,entry in pairs(kinds_tbl.map) do
+          if entry.value == v then return id end
+        end
+      end
+      return ui_mod.id_at(kind, 1)
+    end
+    if type(v) == "string" then
+      -- if it's already an id
+      if ui_mod.entry_for_id(kind, v) then
+        return v
+      end
+      -- try matching label
+      local labels = ui_mod.get_labels(kind)
+      for i,lab in ipairs(labels) do
+        if lab == v then
+          return ui_mod.id_at(kind, i)
+        end
+      end
+      -- try matching by value (for ratio/spf where value might be stored)
+      local kinds = ui_mod._kinds and ui_mod._kinds[kind]
+      if kinds and kinds.map then
+        for id,entry in pairs(kinds.map) do
+          if entry.value == v or tostring(entry.value) == tostring(v) then
+            return id
+          end
+        end
+      end
+    end
+    return ui_mod.id_at(kind, 1)
+  end
+
+  -- autoroll_filters: voucher, pack, tag
+  Brainstorm.config.autoroll_filters = Brainstorm.config.autoroll_filters or {}
+  do
+    local af = Brainstorm.config.autoroll_filters
+    -- voucher
+    local vid = normalize_index_or_id("voucher", af.voucher_id or af.voucher_name)
+    af.voucher_id = vid
+    af.voucher_name = ui_mod.value_for_id("voucher", vid) or af.voucher_name
+
+    -- tag
+    local tid = normalize_index_or_id("tag", af.tag_id or af.tag_name)
+    af.tag_id = tid
+    af.tag_name = ui_mod.value_for_id("tag", tid) or af.tag_name
+
+    -- pack
+    local pid = normalize_index_or_id("pack", af.pack_id)
+    af.pack_id = pid
+    local pack_entry = ui_mod.entry_for_id("pack", pid)
+    af.pack = (pack_entry and pack_entry.items) or af.pack or {}
+  end
+
+  -- autoroll_prefs: spf, ratio
+  Brainstorm.config.autoroll_prefs = Brainstorm.config.autoroll_prefs or {}
+  do
+    local ap = Brainstorm.config.autoroll_prefs
+    local spfid = normalize_index_or_id("spf", ap.seeds_per_frame_id or ap.seeds_per_frame)
+    ap.seeds_per_frame_id = spfid
+    ap.seeds_per_frame = ui_mod.value_for_id("spf", spfid) or ap.seeds_per_frame
+
+    local ratio_input = ap.suit_ratio_id or ap.suit_ratio_percent or ap.suit_ratio_decimal
+    local rid = normalize_index_or_id("ratio", ratio_input)
+    ap.suit_ratio_id = rid
+    local entry = ui_mod.entry_for_id("ratio", rid)
+    ap.suit_ratio_percent = (entry and entry.label) or ap.suit_ratio_percent
+    ap.suit_ratio_decimal = ui_mod.value_for_id("ratio", rid) or ap.suit_ratio_decimal
+  end
+
+  -- Persist migrated config
+  Brainstorm.writeConfig()
 end
 
 function Brainstorm.writeConfig()
@@ -86,18 +203,20 @@ end
 
 function Brainstorm.init()
   Brainstorm.PATH = findBrainstormDirectory(lovely.mod_dir)
+  -- Load default config
+  Brainstorm.config = Brainstorm.loadFile("/Core/config_defaults.lua")
   Brainstorm.loadConfig()
   assert(load(nfs.read(Brainstorm.PATH .. "/UI/ui.lua")))()
 end
 
-local key_press_update_ref = Controller.key_press_update
+local orig_key_press_update = Controller.key_press_update
 function Controller:key_press_update(key, dt)
-  key_press_update_ref(self, key, dt)
+  orig_key_press_update(self, key, dt)
   local keybinds = Brainstorm.config.keybinds
-  if love.keyboard.isDown(keybinds.modifier) then
-    if key == keybinds.f_reroll then
+  if love.keyboard.isDown(keybinds.modifier_key) then
+    if key == keybinds.force_reroll_key then
       Brainstorm.reroll()
-    elseif key == keybinds.a_reroll then
+    elseif key == keybinds.toggle_autoroll_key then
       Brainstorm.ar_active = not Brainstorm.ar_active
     end
   end
@@ -168,43 +287,45 @@ function is_valid_deck(deck_data, min_face_cards, min_aces, dominant_suit_ratio)
   min_aces = min_aces or 0
   dominant_suit_ratio = dominant_suit_ratio or 0
 
-  -- Extract counts from the deck analysis
-  local total_cards = #G.playing_cards
-  local face_card_count = deck_data.face_card_count or 0
-  local ace_count = deck_data.ace_count or 0
-  local suit_count = deck_data.suit_count or 0
+  -- Extract counts from the deck analysis (defensive)
+  local total_cards = (#G.playing_cards) or 0
+  if total_cards == 0 then
+    return false
+  end
+
+  local face_card_count = (deck_data and deck_data.face_card_count) or 0
+  local ace_count = (deck_data and deck_data.ace_count) or 0
+  local suit_count = (deck_data and deck_data.suit_count) or {}
 
   -- Check Face Cards & Aces
   if face_card_count < min_face_cards then
-      --print("Not enough face cards:", face_card_count, "Required:", min_face_cards)
-      return false
+    return false
   end
   if ace_count < min_aces then
-      --print("Not enough aces:", ace_count, "Required:", min_aces)
-      return false
+    return false
   end
 
   -- Check suit distribution
   local sorted_suits = {}
   for suit, count in pairs(suit_count) do
-      table.insert(sorted_suits, {suit = suit, count = count})
+    table.insert(sorted_suits, {suit = suit, count = count})
   end
   table.sort(sorted_suits, function(a, b) return a.count > b.count end)
 
-  -- Sum the top 2 suit counts
-  local top_2_suit_count = sorted_suits[1].count + (sorted_suits[2] and sorted_suits[2].count or 0)
+  -- Sum the top 2 suit counts (handle missing entries)
+  local top1 = (sorted_suits[1] and sorted_suits[1].count) or 0
+  local top2 = (sorted_suits[2] and sorted_suits[2].count) or 0
+  local top_2_suit_count = top1 + top2
   local top_2_suit_percentage = top_2_suit_count / total_cards
 
   if top_2_suit_percentage < dominant_suit_ratio then
-      --print("Suit distribution is too spread out.")
-      return false
+    return false
   end
 
   return true
 end
 
 function Brainstorm.reroll()
-  local G = G -- Cache global G for performance
   G.GAME.viewed_back = nil
   G.run_setup_seed = G.GAME.seeded
   G.challenge_tab = G.GAME and G.GAME.challenge and G.GAME.challenge_tab or nil
@@ -221,9 +342,9 @@ function Brainstorm.reroll()
   G:start_run({ stake = stake, seed = seed, challenge = G.challenge_tab })
 end
 
-local update_ref = Game.update
+local orig_game_update = Game.update
 function Game:update(dt)
-  update_ref(self, dt)
+  orig_game_update(self, dt)
 
   if Brainstorm.ar_active then
     Brainstorm.ar_frames = Brainstorm.ar_frames + 1
@@ -235,7 +356,7 @@ function Game:update(dt)
       if seed_found then
         if G.GAME.starting_params.erratic_suits_and_ranks then
           local deck_data = analyze_deck()        
-          if is_valid_deck(deck_data, Brainstorm.config.ar_prefs.face_count, 0, Brainstorm.config.ar_prefs.suit_ratio_decimal) then
+          if is_valid_deck(deck_data, Brainstorm.config.autoroll_prefs.face_card_minimum, 0, Brainstorm.config.autoroll_prefs.suit_ratio_decimal) then
             Brainstorm.ar_active = false -- STOP REROLLING
             Brainstorm.ar_frames = 0
             if Brainstorm.ar_text then
@@ -279,10 +400,14 @@ function Brainstorm.autoReroll()
       + 0.412311010 * G.CONTROLLER.cursor_hover.time
   )
 
-  local immolate = ffi.load(Brainstorm.PATH .. "/Immolate.dll")
+  local ok, immolate = pcall(ffi.load, Brainstorm.PATH .. "/Immolate.dll")
+  if not ok or not immolate then
+    -- Immolate.dll unavailable or failed to load; abort auto-reroll safely.
+    return nil
+  end
   local pack
-  if #Brainstorm.config.ar_filters.pack > 0 then
-    pack = Brainstorm.config.ar_filters.pack[1]:match("^(.*)_")
+  if #Brainstorm.config.autoroll_filters.pack > 0 then
+    pack = Brainstorm.config.autoroll_filters.pack[1]:match("^(.*)_")
   else
     pack = {}
   end
@@ -290,23 +415,26 @@ function Brainstorm.autoReroll()
   local tag_name = localize({
     type = "name_text",
     set = "Tag",
-    key = Brainstorm.config.ar_filters.tag_name,
+    key = Brainstorm.config.autoroll_filters.tag_name,
   })
   local voucher_name = localize({
     type = "name_text",
     set = "Voucher",
-    key = Brainstorm.config.ar_filters.voucher_name,
+    key = Brainstorm.config.autoroll_filters.voucher_name,
   })
   --print(pack_name, tag_name, voucher_name)
+  if not immolate.brainstorm then
+    return nil
+  end
   seed_found = ffi.string(
     immolate.brainstorm(
       seed_found,
       voucher_name,
       pack_name,
       tag_name,
-      Brainstorm.config.ar_filters.soul_skip,
-      Brainstorm.config.ar_filters.inst_observatory,
-      Brainstorm.config.ar_filters.inst_perkeo
+      Brainstorm.config.autoroll_filters.souls_to_skip,
+      Brainstorm.config.autoroll_filters.inst_observatory,
+      Brainstorm.config.autoroll_filters.inst_perkeo
     )
   )
   if seed_found then
@@ -324,9 +452,9 @@ function Brainstorm.autoReroll()
         voucher_name,
         pack_name,
         tag_name,
-        Brainstorm.config.ar_filters.soul_skip,
-        Brainstorm.config.ar_filters.inst_observatory,
-        Brainstorm.config.ar_filters.inst_perkeo,
+        Brainstorm.config.autoroll_filters.souls_to_skip,
+        Brainstorm.config.autoroll_filters.inst_observatory,
+        Brainstorm.config.autoroll_filters.inst_perkeo,
       },
     }
     G.GAME.seeded = false
