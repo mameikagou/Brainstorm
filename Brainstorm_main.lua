@@ -22,7 +22,7 @@ function Brainstorm.update(dt)
 		Brainstorm.AUTOREROLL.autoRerollFrames = Brainstorm.AUTOREROLL.autoRerollFrames + 1
 		if Brainstorm.AUTOREROLL.autoRerollFrames == 20 then
 			Brainstorm.AUTOREROLL.rerollText = Brainstorm.attention_text({
-				scale = 1.4, text = "Rerolling...", align = 'cm', offset = {x = 0,y = -3.5},major = G.STAGE == G.STAGES.RUN and G.play or G.title_top
+				scale = 1.4, text = Brainstorm.t('toast.rerolling'), align = 'cm', offset = {x = 0,y = -3.5},major = G.STAGE == G.STAGES.RUN and G.play or G.title_top
 			})
 		end
 	end

@@ -4,14 +4,18 @@ local nativefs = require("nativefs")
 Brainstorm.AUTOREROLL = {}
 
 G.FUNCS.change_search_tag = function(x)
+	local option = Brainstorm.SearchTagOptions[x.to_key] or Brainstorm.SearchTagOptions[1]
 	Brainstorm.SETTINGS.autoreroll.searchTagID = x.to_key
-	Brainstorm.SETTINGS.autoreroll.searchTag = Brainstorm.SearchTagList[x.to_val]
+	Brainstorm.SETTINGS.autoreroll.searchTagKey = option.key
+	Brainstorm.SETTINGS.autoreroll.searchTag = option.tag_key
 	nativefs.write(lovely.mod_dir .. "/Brainstorm/settings.lua", STR_PACK(Brainstorm.SETTINGS))
 end
 
 G.FUNCS.change_search_pack = function(x)
+	local option = Brainstorm.SearchPackOptions[x.to_key] or Brainstorm.SearchPackOptions[1]
 	Brainstorm.SETTINGS.autoreroll.searchPackID = x.to_key
-	Brainstorm.SETTINGS.autoreroll.searchPack = Brainstorm.SearchPackList[x.to_val]
+	Brainstorm.SETTINGS.autoreroll.searchPackKey = option.key
+	Brainstorm.SETTINGS.autoreroll.searchPack = option.packs
 	nativefs.write(lovely.mod_dir .. "/Brainstorm/settings.lua", STR_PACK(Brainstorm.SETTINGS))
 end
 

@@ -12,7 +12,7 @@ function Brainstorm.key_press_update(key)
 		if key == k and love.keyboard.isDown(Brainstorm.SETTINGS.keybinds.saveState) then
 			if G.STAGE == G.STAGES.RUN then
 				compress_and_save(G.SETTINGS.profile .. "/" .. "saveState" .. k .. ".jkr", G.ARGS.save_run)
-				saveManagerAlert("Saved state to slot [" .. k .. "]")
+				saveManagerAlert(Brainstorm.t('toast.saved_slot', { k = k }))
 			end
 		end
 		--  LoadState
@@ -25,7 +25,7 @@ function Brainstorm.key_press_update(key)
 			G:start_run({
 				savetext = G.SAVED_GAME,
 			})
-			saveManagerAlert("Loaded save from slot [" .. k .. "]")
+			saveManagerAlert(Brainstorm.t('toast.loaded_slot', { k = k }))
 		end
   end
 	--  FastReroll
