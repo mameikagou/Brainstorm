@@ -16,6 +16,19 @@ Brainstorm.I18N = {
       },
       option = {
         none = 'None',
+        kind = {
+          arcana = 'Arcana',
+          celestial = 'Celestial',
+          standard = 'Standard',
+          buffoon = 'Buffoon',
+          spectral = 'Spectral',
+        },
+        size = {
+          normal = 'Normal',
+          jumbo = 'Jumbo',
+          mega = 'Mega',
+        },
+        pack_template = '{size} {kind} Pack',
         pack = {
           arcana_all = 'Arcana Pack (All)',
           celestial_all = 'Celestial Pack (All)',
@@ -27,7 +40,7 @@ Brainstorm.I18N = {
     },
     ['zh_CN'] = {
       ui = {
-        tab_name = 'Brainstorm',
+        tab_name = '头脑风暴',
         debug_mode = '调试模式',
         search_tag = '自动重掷：目标标签',
         search_pack = '自动重掷：目标补充包',
@@ -41,6 +54,19 @@ Brainstorm.I18N = {
       },
       option = {
         none = '无',
+        kind = {
+          arcana = '秘术',
+          celestial = '天体',
+          standard = '标准',
+          buffoon = '小丑',
+          spectral = '幻灵',
+        },
+        size = {
+          normal = '普通',
+          jumbo = '巨型',
+          mega = '超级',
+        },
+        pack_template = '{size}{kind}包',
         pack = {
           arcana_all = '秘术包（全部）',
           celestial_all = '天体包（全部）',
@@ -156,8 +182,29 @@ end
 
 local function booster_name(key)
   if not key or key == '' then return nil end
-  local base_key = string.gsub(key, '_%d+$', '')
-  return game_name('Booster', base_key) or game_name('Booster', key)
+
+  local normalized_key = string.lower(key)
+  local base_key = string.gsub(normalized_key, '_%d+$', '')
+
+  local localized = game_name('Booster', base_key)
+    or game_name('Booster', normalized_key)
+    or game_name('Booster', key)
+  if localized then return localized end
+
+  local kind, size = string.match(normalized_key, '^p_([a-z]+)_([a-z]+)_%d+$')
+  if not kind or not size then
+    kind, size = string.match(base_key, '^p_([a-z]+)_([a-z]+)$')
+  end
+
+  if kind and size then
+    local kind_label = Brainstorm.t('option.kind.' .. kind)
+    local size_label = Brainstorm.t('option.size.' .. size)
+    if kind_label ~= ('option.kind.' .. kind) and size_label ~= ('option.size.' .. size) then
+      return Brainstorm.t('option.pack_template', { size = size_label, kind = kind_label })
+    end
+  end
+
+  return key
 end
 
 function Brainstorm.search_tag_labels()
