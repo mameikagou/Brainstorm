@@ -36,3 +36,6 @@ Brainstorm allows for super-fast rerolling through the use of an in-game key bin
 Brainstorm can automatically reroll for parameters as specified by the user.
 You can edit the Auto-Reroll parameters in the Brainstorm in-game settings page.
 > To Auto-Reroll:	Press `Ctrl + a`
+
+### I18n Support
+Added i18n support (Currently supports English and Simplified Chinese, easily extensible for other languages).
